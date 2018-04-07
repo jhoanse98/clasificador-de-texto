@@ -1,1 +1,1 @@
-# clasificador-de-texto
+# clasificador-de-texto usando python y sklearn
