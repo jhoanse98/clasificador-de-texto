@@ -1,13 +1,56 @@
 import pandas as pd 
+from io import StringIO
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.multiclass import OneVsRestClassifier
-from sklearn.svm import SVC
+from sklearn.svm import LinearSVC
 from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix
 
 
 
 file_csv = pd.read_csv('McDonalds-Yelp-Sentiment-DFE.csv', encoding='cp1252')
+columns = ['policies_violated','review']
+file_csv = file_csv[columns]
+file_csv = file_csv[pd.notnull(file_csv['policies_violated'])]
+file_csv.columns = ['policies_violated', 'review']
+
+'''for policie in file_csv.policies_violated:
+	file_csv.policies_violated[policie] = policie.split()'''
+
+file_csv['category_id'] = file_csv['policies_violated'].factorize()[0]
+category_id = file_csv[['policies_violated', 'category_id']].drop_duplicates().sort_values('category_id')
+category_to_id = dict(category_id.values)
+id_to_categoru = dict(category_id[['category_id', 'policies_violated']].values)
+
+
+tfidf = TfidfVectorizer(sublinear_tf=True, min_df=5, norm='l2', encoding='latin-1', ngram_range=(1, 2), stop_words='english')
+
+features = tfidf.fit_transform(file_csv.policies_violated).toarray()
+labels = file_csv.category_id
+
+
+X_train, X_test, y_train, y_test = train_test_split(file_csv['review'], file_csv['policies_violated'], random_state = 0)
+count_vect = CountVectorizer()
+X_train_counts = count_vect.fit_transform(X_train)
+tfidf_transformer = TfidfTransformer()
+X_train_tfidf = tfidf_transformer.fit_transform(X_train_counts)
+
+clf = LinearSVC().fit(X_train_tfidf, y_train)
+
+X_test_counts = count_vect.transform(X_test)
+y_pred = clf.predict(X_test_counts)
+
+print(clf.score(X_test_counts, y_test))
+
+
+
+
+
+
+'''
 data_train = file_csv[['review']]
 categories = file_csv[['policies_violated']]
 
@@ -22,7 +65,7 @@ X_train_counts = count_vect.fit_transform(text)
 tfidf_transformer = TfidfTransformer()
 X_train_tfidf = tfidf_transformer.fit_transform(X_train_counts)
 
-X_test = X_train_tfidf[1000:]
+X_test = X_train_tfidf
 
 
 text = []
@@ -35,9 +78,16 @@ for i in range(0,len(text)-1):
 text = MultiLabelBinarizer().fit_transform(text)
 
 
-clf = OneVsRestClassifier(SVC(kernel='linear'))
+clf = OneVsRestClassifier(SVC(kernel='linear', class_weight='balanced'))
+clf.fit(X_train_tfidf[:10], text[:10])
+clf.fit(X_train_tfidf[:50], text[:50])
+clf.fit(X_train_tfidf[:100], text[:100])
+clf.fit(X_train_tfidf[:200], text[:200])
+clf.fit(X_train_tfidf[:500], text[:500])
 clf.fit(X_train_tfidf[:1000], text[:1000])
+
 
 result = clf.predict(X_test)
 #print(result)
-print(clf.score(X_train_tfidf[1000:], result))
+#print(text[1250])
+print(clf.score(X_test, result))'''
