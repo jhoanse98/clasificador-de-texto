@@ -4,11 +4,14 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.multiclass import OneVsRestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import LinearSVC
+from sklearn.naive_bayes import MultinomialNB
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
-
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import GridSearchCV
 
 
 file_csv = pd.read_csv('McDonalds-Yelp-Sentiment-DFE.csv', encoding='cp1252')
@@ -17,10 +20,15 @@ file_csv = file_csv[columns]
 file_csv = file_csv[pd.notnull(file_csv['policies_violated'])]
 file_csv.columns = ['policies_violated', 'review']
 
-'''for policie in file_csv.policies_violated:
-	file_csv.policies_violated[policie] = policie.split()'''
+categories = []
+for policie in file_csv.policies_violated:
+	categories.append(policie.split())
 
-file_csv['category_id'] = file_csv['policies_violated'].factorize()[0]
+categories = MultiLabelBinarizer().fit_transform(categories)
+
+
+
+'''file_csv['category_id'] = file_csv['policies_violated'].factorize()[0]
 category_id = file_csv[['policies_violated', 'category_id']].drop_duplicates().sort_values('category_id')
 category_to_id = dict(category_id.values)
 id_to_categoru = dict(category_id[['category_id', 'policies_violated']].values)
@@ -29,22 +37,45 @@ id_to_categoru = dict(category_id[['category_id', 'policies_violated']].values)
 tfidf = TfidfVectorizer(sublinear_tf=True, min_df=5, norm='l2', encoding='latin-1', ngram_range=(1, 2), stop_words='english')
 
 features = tfidf.fit_transform(file_csv.policies_violated).toarray()
-labels = file_csv.category_id
+labels = file_csv.category_id'''
 
 
-X_train, X_test, y_train, y_test = train_test_split(file_csv['review'], file_csv['policies_violated'], random_state = 0)
+X_train, X_test, y_train, y_test = train_test_split(file_csv.review, categories)
 count_vect = CountVectorizer()
 X_train_counts = count_vect.fit_transform(X_train)
 tfidf_transformer = TfidfTransformer()
 X_train_tfidf = tfidf_transformer.fit_transform(X_train_counts)
 
-clf = LinearSVC().fit(X_train_tfidf, y_train)
+clf = OneVsRestClassifier(LinearSVC())
+'''clf.fit(X_train_tfidf, y_train)
 
 X_test_counts = count_vect.transform(X_test)
 y_pred = clf.predict(X_test_counts)
 
-print(clf.score(X_test_counts, y_test))
 
+print(clf.score(X_test_counts, y_test))'''
+
+text_clf = Pipeline([('vect', CountVectorizer()),
+	('tfidf', TfidfTransformer()),
+	('clf', clf)])
+
+
+parameters = {'vect__ngram_range': [(1, 1)],
+             'tfidf__use_idf': (True, False),
+             'vect__stop_words': ['english'],
+             'clf__estimator__class_weight': ['balanced'],
+             'clf__estimator__C': [1.0],
+             'clf__estimator__multi_class': ['ovr', 'crammer_singer']
+               }
+
+print(text_clf.get_params().keys())
+
+
+gs_clf = GridSearchCV(text_clf, parameters, n_jobs=-1)
+gs_clf.fit(X_train, y_train)
+
+print(gs_clf.best_score_)
+print(gs_clf.best_params_)
 
 
 
